@@ -1,0 +1,1331 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Laboratorium Bangun Ruang 3D — Titik Sudut, Rusuk & Sisi</title>
+  <link rel="icon" href="data:," />
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- WAJIB: Three.js r128 + OrbitControls + Tone.js (urutan & versi persis seperti ini) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      overflow-x: hidden;
+      user-select: none;
+    }
+
+    #canvas-container canvas {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
+    ::-webkit-scrollbar-thumb { background: rgba(99, 102, 241, 0.5); border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(99, 102, 241, 0.8); }
+
+    @keyframes pulse-ring {
+      0% { transform: scale(0.95); opacity: 0.9; }
+      50% { transform: scale(1.3); opacity: 0.4; }
+      100% { transform: scale(0.95); opacity: 0.9; }
+    }
+    .pulse-glow-ring { animation: pulse-ring 1.8s infinite ease-in-out; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased selection:bg-indigo-500 selection:text-white">
+
+  <!-- ===================== TOP HEADER ===================== -->
+  <header class="bg-slate-900/90 backdrop-blur-md border-b border-slate-800 sticky top-0 z-40 px-4 py-2.5 sm:px-6 flex items-center justify-between shadow-lg">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 via-indigo-600 to-cyan-400 flex items-center justify-center shadow-lg shadow-indigo-500/25">
+        <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="text-base sm:text-lg font-extrabold bg-gradient-to-r from-amber-200 via-white to-cyan-200 bg-clip-text text-transparent">
+          Laboratorium Bangun Ruang 3D
+        </h1>
+        <p class="text-xs text-slate-400 font-medium">Visualisasi Ukuran Besar: Titik Sudut, Rusuk, &amp; Sisi</p>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <button id="btn-toggle-sound" title="Aktifkan/Matikan Suara" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-indigo-400 border border-slate-700 transition flex items-center gap-1.5 text-xs font-semibold">
+        <svg id="icon-sound-on" class="w-4 h-4 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+        </svg>
+        <span class="hidden sm:inline" id="sound-status-text">Audio: Nyala</span>
+      </button>
+
+      <button id="btn-reset-view" title="Reset Posisi Kamera (R)" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-cyan-400 border border-slate-700 transition flex items-center gap-1 text-xs font-semibold">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+        <span class="hidden sm:inline">Reset Kamera</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ===================== MAIN VIEWPORT ===================== -->
+  <main class="flex-1 flex flex-col lg:flex-row h-[calc(100vh-61px)] overflow-hidden">
+
+    <!-- KANVAS 3D -->
+    <section class="relative flex-1 lg:w-7/12 xl:w-8/12 min-h-[360px] h-[55vh] lg:h-full bg-slate-950 flex flex-col overflow-hidden">
+
+      <div id="canvas-container" class="w-full h-full min-h-[350px] cursor-grab active:cursor-grabbing relative overflow-hidden flex-1">
+
+        <!-- Info tag -->
+        <div class="absolute top-4 left-4 pointer-events-none z-10 flex flex-col gap-1.5 bg-slate-900/85 backdrop-blur-md px-4 py-3 rounded-2xl border border-slate-700/80 shadow-2xl">
+          <div class="flex items-center gap-2">
+            <span id="badge-shape-name" class="font-extrabold text-base sm:text-lg text-white">Kubus</span>
+            <span id="badge-mode-name" class="text-xs bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2.5 py-0.5 rounded-full font-bold">Siap Disorot</span>
+          </div>
+          <p class="text-[11px] text-slate-300 flex items-center gap-1 font-medium">
+            <svg class="w-3.5 h-3.5 text-indigo-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
+            </svg>
+            Geser = rotasi • Roda = zoom • Klik bagian = detail • 1/2/3 = mode
+          </p>
+        </div>
+
+        <!-- Legenda visual -->
+        <div class="absolute top-4 right-4 pointer-events-none z-10 hidden sm:flex flex-col gap-1.5 bg-slate-900/85 backdrop-blur-md px-3.5 py-2.5 rounded-xl border border-slate-700/70 text-xs shadow-xl">
+          <div class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Keterangan Visual</div>
+          <div class="flex items-center gap-2 text-amber-300 font-semibold">
+            <span class="w-3.5 h-3.5 rounded-full bg-amber-400 shadow-[0_0_10px_#f59e0b] inline-block"></span>
+            <span>Titik Sudut (Bola Emas)</span>
+          </div>
+          <div class="flex items-center gap-2 text-cyan-300 font-semibold">
+            <span class="w-4 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_#00f0ff] inline-block"></span>
+            <span>Rusuk (Batang Neon)</span>
+          </div>
+          <div class="flex items-center gap-2 text-emerald-300 font-semibold">
+            <span class="w-3.5 h-3 rounded-sm bg-emerald-400/80 shadow-[0_0_8px_#10b981] inline-block border border-emerald-300"></span>
+            <span>Sisi (Bidang Permukaan)</span>
+          </div>
+        </div>
+
+        <!-- Zoom -->
+        <div class="absolute right-4 top-36 z-10 flex flex-col gap-1.5">
+          <button id="btn-zoom-in" title="Perbesar" class="w-9 h-9 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-white font-bold flex items-center justify-center border border-slate-700 shadow-xl transition active:scale-90">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+          </button>
+          <button id="btn-zoom-out" title="Perkecil" class="w-9 h-9 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-white font-bold flex items-center justify-center border border-slate-700 shadow-xl transition active:scale-90">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 12H6"/></svg>
+          </button>
+        </div>
+
+        <!-- Bar Sequencer -->
+        <div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 sm:gap-2 bg-slate-900/90 backdrop-blur-md pl-2 pr-3 py-2 rounded-2xl border border-slate-700/80 shadow-2xl">
+          <button id="btn-prev-step" title="Elemen Sebelumnya (←)" class="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center justify-center text-slate-200 transition active:scale-90">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/></svg>
+          </button>
+          <button id="btn-play-sequence" title="Putar Urutan Otomatis (Spasi)" class="h-9 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 flex items-center justify-center gap-1.5 text-white text-xs font-bold transition active:scale-95">
+            <svg id="icon-play" class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            <svg id="icon-pause" class="w-4 h-4 hidden" fill="currentColor" viewBox="0 0 24 24"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
+            <span class="hidden sm:inline">Putar Urutan</span>
+          </button>
+          <button id="btn-next-step" title="Elemen Berikutnya (→)" class="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center justify-center text-slate-200 transition active:scale-90">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"/></svg>
+          </button>
+          <div class="ml-1 flex flex-col leading-tight border-l border-slate-700 pl-3">
+            <span id="step-counter" class="text-xs font-extrabold text-indigo-300">- / -</span>
+            <span id="current-element-name" class="text-[10px] text-slate-400 font-medium max-w-[150px] sm:max-w-[190px] truncate">Klik elemen di kanvas</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PANEL KANAN -->
+    <aside class="w-full flex-1 lg:flex-none lg:w-5/12 xl:w-4/12 bg-slate-900/50 border-t lg:border-t-0 lg:border-l border-slate-800 overflow-y-auto">
+      <div class="p-4 sm:p-5 flex flex-col gap-5">
+
+        <section>
+          <h2 class="text-[10px] uppercase font-extrabold text-slate-500 tracking-widest mb-2 flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+            Pilih Bangun Ruang
+          </h2>
+          <div id="shape-selector" class="grid grid-cols-3 gap-2"></div>
+        </section>
+
+        <section>
+          <h2 class="text-[10px] uppercase font-extrabold text-slate-500 tracking-widest mb-2">Sorot Bagian Bangun</h2>
+          <div id="mode-selector" class="grid grid-cols-3 gap-2">
+            <button type="button" data-mode="vertices" class="flex items-center justify-center gap-1.5 px-2 py-2.5 rounded-xl text-[11px] font-bold border transition">
+              <span class="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span> Titik
+            </button>
+            <button type="button" data-mode="edges" class="flex items-center justify-center gap-1.5 px-2 py-2.5 rounded-xl text-[11px] font-bold border transition">
+              <span class="w-3 h-1 rounded-full bg-cyan-400 inline-block"></span> Rusuk
+            </button>
+            <button type="button" data-mode="faces" class="flex items-center justify-center gap-1.5 px-2 py-2.5 rounded-xl text-[11px] font-bold border transition">
+              <span class="w-2.5 h-2 rounded-sm bg-emerald-400 inline-block border border-emerald-200/60"></span> Sisi
+            </button>
+          </div>
+        </section>
+
+        <button id="btn-explode" type="button" class="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold border transition">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m-7-7l7 7m0-14l-7-7m7 7l7-7"/></svg>
+          <span id="explode-label">Bongkar Bangun (Explode)</span>
+        </button>
+
+        <section id="edu-panel" class="bg-slate-800/50 rounded-2xl border border-slate-700/70 p-4 flex flex-col gap-3">
+          <div>
+            <h3 id="edu-name" class="text-lg font-extrabold text-white"></h3>
+            <p id="edu-tagline" class="text-xs text-slate-400 mt-0.5"></p>
+          </div>
+
+          <div class="grid grid-cols-3 gap-2">
+            <div class="bg-slate-900/70 rounded-xl p-2.5 text-center border border-amber-500/30">
+              <div id="count-vertices" class="text-xl font-extrabold text-amber-300">0</div>
+              <div class="text-[10px] text-slate-400 font-semibold">Titik Sudut</div>
+            </div>
+            <div class="bg-slate-900/70 rounded-xl p-2.5 text-center border border-cyan-500/30">
+              <div id="count-edges" class="text-xl font-extrabold text-cyan-300">0</div>
+              <div class="text-[10px] text-slate-400 font-semibold">Rusuk</div>
+            </div>
+            <div class="bg-slate-900/70 rounded-xl p-2.5 text-center border border-emerald-500/30">
+              <div id="count-faces" class="text-xl font-extrabold text-emerald-300">0</div>
+              <div class="text-[10px] text-slate-400 font-semibold">Sisi</div>
+            </div>
+          </div>
+
+          <!-- Rumus Euler (muncul otomatis untuk bangun polihedron) -->
+          <div id="euler-chip" class="hidden bg-violet-950/40 border border-violet-500/30 rounded-xl px-3 py-2 text-center">
+            <span class="text-[10px] uppercase font-bold text-violet-300 tracking-wider">Rumus Euler</span>
+            <code id="euler-text" class="block text-sm font-bold text-violet-100 font-mono"></code>
+          </div>
+
+          <div>
+            <h4 class="text-[10px] uppercase font-extrabold text-slate-500 tracking-widest mb-1.5">Ciri-Ciri Penting</h4>
+            <ul id="edu-characteristics" class="flex flex-col gap-1.5"></ul>
+          </div>
+
+          <div class="flex flex-col gap-2">
+            <div class="bg-indigo-950/40 border border-indigo-500/30 rounded-xl px-3 py-2">
+              <span class="text-[10px] uppercase font-bold text-indigo-300 tracking-wider">Volume</span>
+              <code id="formula-volume" class="block text-sm font-bold text-indigo-100 font-mono"></code>
+            </div>
+            <div class="bg-cyan-950/40 border border-cyan-500/30 rounded-xl px-3 py-2">
+              <span class="text-[10px] uppercase font-bold text-cyan-300 tracking-wider">Luas Permukaan</span>
+              <code id="formula-surface" class="block text-sm font-bold text-cyan-100 font-mono"></code>
+            </div>
+          </div>
+        </section>
+      </div>
+    </aside>
+  </main>
+
+  <!-- ===================== SCRIPT 1: DATA BANGUN RUANG ===================== -->
+  <script>
+    const SHAPES_DATA = {
+
+      kubus: {
+        name: 'Kubus',
+        tagline: 'Bangun ruang beraturan dengan 6 sisi persegi kongruen',
+        verticesCount: 8, edgesCount: 12, facesCount: 6,
+        characteristics: [
+          'Memiliki 8 titik sudut: A, B, C, D (alas) dan E, F, G, H (atap).',
+          'Memiliki 12 rusuk yang seluruhnya sama panjang (rusuk = s).',
+          'Memiliki 6 sisi persegi yang luasnya sama besar (kongruen).',
+          'Di setiap titik sudut bertemu tepat 3 rusuk yang saling tegak lurus.',
+          'Memiliki 4 diagonal sisi (d = s√2) dan 4 diagonal ruang (d = s√3).'
+        ],
+        volumeFormula: 'V = s × s × s = s³',
+        surfaceFormula: 'L = 6 × s²',
+        buildGeometry: function() {
+          const s = 1.3;
+          return {
+            vertices: [
+              { id: 'A', pos: [-s, -s,  s], label: 'Titik A (alas depan kiri)' },
+              { id: 'B', pos: [ s, -s,  s], label: 'Titik B (alas depan kanan)' },
+              { id: 'C', pos: [ s, -s, -s], label: 'Titik C (alas belakang kanan)' },
+              { id: 'D', pos: [-s, -s, -s], label: 'Titik D (alas belakang kiri)' },
+              { id: 'E', pos: [-s,  s,  s], label: 'Titik E (atas depan kiri)' },
+              { id: 'F', pos: [ s,  s,  s], label: 'Titik F (atas depan kanan)' },
+              { id: 'G', pos: [ s,  s, -s], label: 'Titik G (atas belakang kanan)' },
+              { id: 'H', pos: [-s,  s, -s], label: 'Titik H (atas belakang kiri)' }
+            ],
+            edges: [
+              { label: 'Rusuk AB (alas depan)',    pair: [0, 1] },
+              { label: 'Rusuk BC (alas kanan)',    pair: [1, 2] },
+              { label: 'Rusuk CD (alas belakang)', pair: [2, 3] },
+              { label: 'Rusuk DA (alas kiri)',     pair: [3, 0] },
+              { label: 'Rusuk EF (atap depan)',    pair: [4, 5] },
+              { label: 'Rusuk FG (atap kanan)',    pair: [5, 6] },
+              { label: 'Rusuk GH (atap belakang)', pair: [6, 7] },
+              { label: 'Rusuk HE (atap kiri)',     pair: [7, 4] },
+              { label: 'Rusuk AE (tegak)', pair: [0, 4] },
+              { label: 'Rusuk BF (tegak)', pair: [1, 5] },
+              { label: 'Rusuk CG (tegak)', pair: [2, 6] },
+              { label: 'Rusuk DH (tegak)', pair: [3, 7] }
+            ],
+            faces: [
+              { label: 'Sisi Alas ABCD (bawah)', color: 0x10b981, verts: [0, 1, 2, 3] },
+              { label: 'Sisi Atap EFGH (atas)',  color: 0x3b82f6, verts: [4, 5, 6, 7] },
+              { label: 'Sisi Depan ABFE',        color: 0xf59e0b, verts: [0, 1, 5, 4] },
+              { label: 'Sisi Belakang CDHG',     color: 0xef4444, verts: [2, 3, 7, 6] },
+              { label: 'Sisi Kanan BCGF',        color: 0xa855f7, verts: [1, 2, 6, 5] },
+              { label: 'Sisi Kiri DAEH',         color: 0xec4899, verts: [3, 0, 4, 7] }
+            ]
+          };
+        }
+      },
+
+      balok: {
+        name: 'Balok',
+        tagline: 'Seperti kubus, namun rusuknya terbagi 3 ukuran: panjang, lebar, tinggi',
+        verticesCount: 8, edgesCount: 12, facesCount: 6,
+        characteristics: [
+          'Memiliki 8 titik sudut dan 12 rusuk dalam 3 kelompok ukuran.',
+          'Memiliki 6 sisi persegi panjang yang terbagi 3 pasang kongruen.',
+          'Sisi yang berhadapan selalu sama luas (depan = belakang, dst).',
+          'Diagonal ruang sama panjang semuanya: d = √(p² + l² + t²).',
+          'Setiap titik sudut adalah pertemuan 3 rusuk yang saling tegak lurus.'
+        ],
+        volumeFormula: 'V = p × l × t',
+        surfaceFormula: 'L = 2 × (p·l + p·t + l·t)',
+        buildGeometry: function() {
+          const px = 1.6, py = 0.9, pz = 1.1;
+          return {
+            vertices: [
+              { id: 'A', pos: [-px, -py,  pz], label: 'Titik A' },
+              { id: 'B', pos: [ px, -py,  pz], label: 'Titik B' },
+              { id: 'C', pos: [ px, -py, -pz], label: 'Titik C' },
+              { id: 'D', pos: [-px, -py, -pz], label: 'Titik D' },
+              { id: 'E', pos: [-px,  py,  pz], label: 'Titik E' },
+              { id: 'F', pos: [ px,  py,  pz], label: 'Titik F' },
+              { id: 'G', pos: [ px,  py, -pz], label: 'Titik G' },
+              { id: 'H', pos: [-px,  py, -pz], label: 'Titik H' }
+            ],
+            edges: [
+              { label: 'Rusuk AB (panjang alas)', pair: [0, 1] },
+              { label: 'Rusuk BC (lebar alas)',   pair: [1, 2] },
+              { label: 'Rusuk CD (panjang alas)', pair: [2, 3] },
+              { label: 'Rusuk DA (lebar alas)',   pair: [3, 0] },
+              { label: 'Rusuk EF (panjang atap)', pair: [4, 5] },
+              { label: 'Rusuk FG (lebar atap)',   pair: [5, 6] },
+              { label: 'Rusuk GH (panjang atap)', pair: [6, 7] },
+              { label: 'Rusuk HE (lebar atap)',   pair: [7, 4] },
+              { label: 'Rusuk AE (tinggi)', pair: [0, 4] },
+              { label: 'Rusuk BF (tinggi)', pair: [1, 5] },
+              { label: 'Rusuk CG (tinggi)', pair: [2, 6] },
+              { label: 'Rusuk DH (tinggi)', pair: [3, 7] }
+            ],
+            faces: [
+              { label: 'Sisi Alas ABCD (bawah)', color: 0x10b981, verts: [0, 1, 2, 3] },
+              { label: 'Sisi Atap EFGH (atas)',  color: 0x3b82f6, verts: [4, 5, 6, 7] },
+              { label: 'Sisi Depan ABFE',        color: 0xf59e0b, verts: [0, 1, 5, 4] },
+              { label: 'Sisi Belakang CDHG',     color: 0xef4444, verts: [2, 3, 7, 6] },
+              { label: 'Sisi Kanan BCGF',        color: 0xa855f7, verts: [1, 2, 6, 5] },
+              { label: 'Sisi Kiri DAEH',         color: 0xec4899, verts: [3, 0, 4, 7] }
+            ]
+          };
+        }
+      },
+
+      prisma: {
+        name: 'Prisma Segitiga',
+        tagline: 'Alas & tutup segitiga dengan 3 sisi tegak persegi panjang',
+        verticesCount: 6, edgesCount: 9, facesCount: 5,
+        characteristics: [
+          'Memiliki 6 titik sudut: 3 pada alas (A, B, C) dan 3 pada tutup (D, E, F).',
+          'Memiliki 9 rusuk: 3 rusuk alas + 3 rusuk tutup + 3 rusuk tegak.',
+          'Memiliki 5 sisi: 2 segitiga (alas & tutup) + 3 persegi panjang (tegak).',
+          'Jumlah sisi tegak prisma selalu sama dengan jumlah sisi bangun alasnya.',
+          'Semua rusuk tegak sama panjang dan saling sejajar.'
+        ],
+        volumeFormula: 'V = Luas alas × tinggi',
+        surfaceFormula: 'L = 2×Luas alas + Keliling alas × tinggi',
+        buildGeometry: function() {
+          return {
+            vertices: [
+              { id: 'A', pos: [-1.3, -1.2,  1.0], label: 'Titik A (alas)' },
+              { id: 'B', pos: [ 1.3, -1.2,  1.0], label: 'Titik B (alas)' },
+              { id: 'C', pos: [ 0.0, -1.2, -1.5], label: 'Titik C (alas)' },
+              { id: 'D', pos: [-1.3,  1.2,  1.0], label: 'Titik D (tutup)' },
+              { id: 'E', pos: [ 1.3,  1.2,  1.0], label: 'Titik E (tutup)' },
+              { id: 'F', pos: [ 0.0,  1.2, -1.5], label: 'Titik F (tutup)' }
+            ],
+            edges: [
+              { label: 'Rusuk AB (alas)',  pair: [0, 1] },
+              { label: 'Rusuk BC (alas)',  pair: [1, 2] },
+              { label: 'Rusuk CA (alas)',  pair: [2, 0] },
+              { label: 'Rusuk DE (tutup)', pair: [3, 4] },
+              { label: 'Rusuk EF (tutup)', pair: [4, 5] },
+              { label: 'Rusuk FD (tutup)', pair: [5, 3] },
+              { label: 'Rusuk AD (tegak kiri)',     pair: [0, 3] },
+              { label: 'Rusuk BE (tegak kanan)',    pair: [1, 4] },
+              { label: 'Rusuk CF (tegak belakang)', pair: [2, 5] }
+            ],
+            faces: [
+              { label: 'Sisi Alas ABC (segitiga bawah)', color: 0x10b981, verts: [0, 1, 2] },
+              { label: 'Sisi Tutup DEF (segitiga atas)', color: 0x3b82f6, verts: [3, 4, 5] },
+              { label: 'Sisi Tegak ABED (depan)',        color: 0xf59e0b, verts: [0, 1, 4, 3] },
+              { label: 'Sisi Tegak BCFE (kanan)',        color: 0xef4444, verts: [1, 2, 5, 4] },
+              { label: 'Sisi Tegak CADF (kiri)',         color: 0xa855f7, verts: [2, 0, 3, 5] }
+            ]
+          };
+        }
+      },
+
+      limas: {
+        name: 'Limas Segi Empat',
+        tagline: 'Alas persegi dengan 4 sisi tegak segitiga bertemu di titik puncak T',
+        verticesCount: 5, edgesCount: 8, facesCount: 5,
+        characteristics: [
+          'Memiliki 5 titik sudut: 4 titik alas (A, B, C, D) + 1 titik puncak (T).',
+          'Memiliki 8 rusuk: 4 rusuk alas + 4 rusuk tegak menuju puncak.',
+          'Memiliki 5 sisi: 1 alas persegi + 4 sisi tegak berbentuk segitiga.',
+          'Semua sisi tegak bertemu tepat di satu titik puncak yang sama.',
+          'Seperti piramida: jika alas persegi & puncak di tengah → limas simetri.'
+        ],
+        volumeFormula: 'V = ⅓ × Luas alas × tinggi',
+        surfaceFormula: 'L = Luas alas + jumlah luas 4 sisi tegak',
+        buildGeometry: function() {
+          return {
+            vertices: [
+              { id: 'A', pos: [-1.4, -1.1,  1.4], label: 'Titik A (alas)' },
+              { id: 'B', pos: [ 1.4, -1.1,  1.4], label: 'Titik B (alas)' },
+              { id: 'C', pos: [ 1.4, -1.1, -1.4], label: 'Titik C (alas)' },
+              { id: 'D', pos: [-1.4, -1.1, -1.4], label: 'Titik D (alas)' },
+              { id: 'T', pos: [ 0.0,  1.9,  0.0], label: 'Titik Puncak T' }
+            ],
+            edges: [
+              { label: 'Rusuk AB (alas depan)',    pair: [0, 1] },
+              { label: 'Rusuk BC (alas kanan)',    pair: [1, 2] },
+              { label: 'Rusuk CD (alas belakang)', pair: [2, 3] },
+              { label: 'Rusuk DA (alas kiri)',     pair: [3, 0] },
+              { label: 'Rusuk TA (tegak)', pair: [4, 0] },
+              { label: 'Rusuk TB (tegak)', pair: [4, 1] },
+              { label: 'Rusuk TC (tegak)', pair: [4, 2] },
+              { label: 'Rusuk TD (tegak)', pair: [4, 3] }
+            ],
+            faces: [
+              { label: 'Sisi Alas ABCD (persegi)',  color: 0x10b981, verts: [0, 1, 2, 3] },
+              { label: 'Sisi Tegak TAB (depan)',    color: 0xf59e0b, verts: [4, 0, 1] },
+              { label: 'Sisi Tegak TBC (kanan)',    color: 0xef4444, verts: [4, 1, 2] },
+              { label: 'Sisi Tegak TCD (belakang)', color: 0xa855f7, verts: [4, 2, 3] },
+              { label: 'Sisi Tegak TDA (kiri)',     color: 0xec4899, verts: [4, 3, 0] }
+            ]
+          };
+        }
+      },
+
+      tabung: {
+        name: 'Tabung',
+        tagline: 'Silinder dengan 2 alas lingkaran kongruen dan 1 selimut lengkung',
+        verticesCount: 0, edgesCount: 2, facesCount: 3,
+        characteristics: [
+          'TIDAK memiliki titik sudut karena permukaannya melengkung mulus.',
+          'Memiliki 2 rusuk lengkung berupa keliling lingkaran alas dan tutup.',
+          'Memiliki 3 sisi: 2 lingkaran kongruen (alas & tutup) + 1 selimut lengkung.',
+          'Selimut jika dibentangkan menjadi persegi panjang (panjang = 2πr, lebar = t).',
+          'Dapat dianggap prisma dengan alas lingkaran (sisi tegak tak terhingga).'
+        ],
+        volumeFormula: 'V = π × r² × t',
+        surfaceFormula: 'L = 2 × π × r × (r + t)',
+        buildGeometry: function() {
+          const r = 1.3, t = 2.8;
+          return {
+            isCurved: true,
+            type: 'tabung',
+            radius: r,
+            height: t,
+            vertices: [],
+            edges: [
+              { label: 'Rusuk Lengkung Tutup (Lingkaran Atas)', y: t / 2, radius: r },
+              { label: 'Rusuk Lengkung Alas (Lingkaran Bawah)', y: -t / 2, radius: r }
+            ],
+            faces: [
+              { label: 'Sisi Alas (Lingkaran Bawah)', color: 0x10b981 },
+              { label: 'Sisi Tutup (Lingkaran Atas)', color: 0x3b82f6 },
+              { label: 'Sisi Selimut Tabung',         color: 0xf59e0b }
+            ]
+          };
+        }
+      },
+
+      kerucut: {
+        name: 'Kerucut',
+        tagline: 'Limas lingkaran dengan 1 alas melingkar dan 1 titik puncak runcing (apex)',
+        verticesCount: 0,
+        edgesCount: 1,
+        facesCount: 2,
+        characteristics: [
+          'TIDAK memiliki titik sudut pada pertemuan rusuk, namun memiliki 1 Titik Puncak di atas.',
+          'Memiliki 1 buah rusuk lengkung berupa keliling lingkaran alas.',
+          'Memiliki 2 bidang sisi: 1 lingkaran alas + 1 selimut kerucut.',
+          'Garis pelukis (s) menghubungkan titik puncak ke keliling alas: s = √(r² + t²).',
+          'Merupakan bentuk limas dengan jumlah segi alas tak terhingga.'
+        ],
+        volumeFormula: 'V = ⅓ × π × r² × t',
+        surfaceFormula: 'Lp = πr(r + s)',
+        buildGeometry: function() {
+          const r = 1.5;
+          const h = 2.8;
+          return {
+            isCurved: true,
+            type: 'kerucut',
+            radius: r,
+            height: h,
+            vertices: [
+              { id: 'T', pos: [0, h / 2, 0], label: 'Titik Puncak Kerucut (Apex)' }
+            ],
+            edges: [
+              { label: 'Rusuk Lengkung Alas (Keliling Lingkaran)', y: -h/2, radius: r }
+            ],
+            faces: [
+              { label: 'Sisi Alas (Lingkaran Bawah)', type: 'circle_face', y: -h/2, radius: r, color: 0x10b981 },
+              { label: 'Sisi Selimut Kerucut', type: 'cone_body', radius: r, height: h, color: 0xef4444 }
+            ]
+          };
+        }
+      }
+    };
+  </script>
+
+  <!-- ===================== SCRIPT 2: AUDIO + SCENE ===================== -->
+  <script>
+    /* ---------- Audio (Tone.js) ---------- */
+    let isSoundEnabled = true;
+    let synth = null;
+
+    function initAudio() {
+      if (!synth && typeof Tone !== 'undefined') {
+        try {
+          synth = new Tone.PolySynth(Tone.Synth, {
+            oscillator: { type: "triangle" },
+            envelope: { attack: 0.01, decay: 0.15, sustain: 0.1, release: 0.6 }
+          }).toDestination();
+          synth.volume.value = -6;
+        } catch (e) { console.warn("Audio warning:", e); }
+      }
+    }
+
+    function playNote(stepIndex) {
+      if (!isSoundEnabled || typeof Tone === 'undefined') return;
+      try {
+        if (Tone.context && Tone.context.state !== 'running') Tone.start();
+        initAudio();
+        const notes = ["C4", "E4", "G4", "B4", "C5", "D5", "E5", "G5", "A5", "C6"];
+        if (synth) synth.triggerAttackRelease(notes[stepIndex % notes.length], "8n");
+      } catch (err) {}
+    }
+
+    /* ---------- Variabel Scene ---------- */
+    let scene, camera, renderer, controls;
+    let mainGroup;
+    let currentShapeKey = 'kubus';
+    let currentMode = 'vertices';
+
+    let vertexMeshes = [];
+    let edgeMeshes = [];
+    let faceMeshes = [];
+
+    let activeElements = [];
+    let currentStepIndex = -1;
+    let isPlayingSequence = false;
+    let sequenceTimer = null;
+    let autoRotate = false;
+    let isExploded = false;
+
+    const container = document.getElementById('canvas-container');
+
+    /* Fallback kontrol orbit sederhana */
+    function initFallbackControls() {
+      let isDragging = false;
+      let prevMousePos = { x: 0, y: 0 };
+      const dom = renderer.domElement;
+
+      dom.addEventListener('pointerdown', (e) => {
+        isDragging = true;
+        prevMousePos = { x: e.clientX, y: e.clientY };
+      });
+      window.addEventListener('pointermove', (e) => {
+        if (!isDragging || !mainGroup) return;
+        mainGroup.rotation.y += (e.clientX - prevMousePos.x) * 0.01;
+        mainGroup.rotation.x += (e.clientY - prevMousePos.y) * 0.01;
+        prevMousePos = { x: e.clientX, y: e.clientY };
+      });
+      window.addEventListener('pointerup', () => { isDragging = false; });
+      window.addEventListener('pointercancel', () => { isDragging = false; });
+    }
+
+    function initThreeScene() {
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x060913);
+      scene.fog = new THREE.Fog(0x060913, 14, 30);
+
+      const w = Math.max(container.clientWidth || window.innerWidth * 0.6, 320);
+      const h = Math.max(container.clientHeight || window.innerHeight * 0.55, 320);
+
+      camera = new THREE.PerspectiveCamera(42, w / h, 0.1, 100);
+      camera.position.set(4.2, 3.0, 4.8);
+      camera.lookAt(0, 0, 0);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+      renderer.setSize(w, h);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      container.appendChild(renderer.domElement);
+
+      if (typeof THREE.OrbitControls !== 'undefined') {
+        controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.06;
+        controls.enablePan = false;
+        controls.maxDistance = 14;
+        controls.minDistance = 2;
+        controls.target.set(0, 0, 0);
+        controls.update();
+      } else {
+        initFallbackControls();
+      }
+
+      /* Pencahayaan terang & merata */
+      scene.add(new THREE.AmbientLight(0xffffff, 0.85));
+
+      const light1 = new THREE.DirectionalLight(0xffffff, 1.1);
+      light1.position.set(8, 14, 10);
+      scene.add(light1);
+
+      const light2 = new THREE.DirectionalLight(0x818cf8, 0.8);
+      light2.position.set(-8, -4, -8);
+      scene.add(light2);
+
+      const light3 = new THREE.PointLight(0xffffff, 0.6, 25);
+      light3.position.set(0, 6, 0);
+      scene.add(light3);
+
+      /* Grid lantai */
+      const grid = new THREE.GridHelper(14, 24, 0x4338ca, 0x1e293b);
+      grid.position.y = -2.0;
+      scene.add(grid);
+
+      mainGroup = new THREE.Group();
+      scene.add(mainGroup);
+
+      window.addEventListener('resize', onWindowResize);
+      if (window.ResizeObserver) {
+        new ResizeObserver(() => onWindowResize()).observe(container);
+      }
+
+      loadShape(currentShapeKey);
+      animateLoop();
+
+      setTimeout(onWindowResize, 150);
+      setTimeout(onWindowResize, 500);
+    }
+
+    function onWindowResize() {
+      if (!container || !renderer || !camera) return;
+      const w = Math.max(container.clientWidth, 320);
+      const h = Math.max(container.clientHeight, 320);
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    }
+  </script>
+
+  <!-- ===================== SCRIPT 3: HELPER & PEMBANGUN MODEL ===================== -->
+  <script>
+    /* Reset & bersihkan model lama */
+    function clearCurrentModel() {
+      stopSequence();
+      currentStepIndex = -1;
+      activeElements = [];
+      vertexMeshes = [];
+      edgeMeshes = [];
+      faceMeshes = [];
+      isExploded = false;
+      updateExplodeButtonUI(false);
+
+      while (mainGroup.children.length > 0) {
+        const obj = mainGroup.children[0];
+        mainGroup.remove(obj);
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) {
+          if (Array.isArray(obj.material)) obj.material.forEach(m => { if (m.map) m.map.dispose(); m.dispose(); });
+          else { if (obj.material.map) obj.material.map.dispose(); obj.material.dispose(); }
+        }
+      }
+    }
+
+    /* Batang rusuk tebal antar dua titik */
+    function createThickEdge(p1, p2, radius, color) {
+      const v1 = new THREE.Vector3(...p1);
+      const v2 = new THREE.Vector3(...p2);
+      const distance = v1.distanceTo(v2);
+
+      const geom = new THREE.CylinderGeometry(radius, radius, distance, 20);
+      const mat = new THREE.MeshStandardMaterial({
+        color: color, roughness: 0.2, metalness: 0.3, transparent: true, opacity: 0.9
+      });
+      const mesh = new THREE.Mesh(geom, mat);
+      mesh.position.copy(v1.clone().add(v2).divideScalar(2));
+
+      // Arahkan sumbu silinder (+Y) ke arah v1 → v2
+      const dir = v2.clone().sub(v1).normalize();
+      mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+
+      mesh.renderOrder = 4;
+      return mesh;
+    }
+
+    /* Bidang sisi poligon dari daftar titik */
+    function createPolygonFace(vertexPositions, color) {
+      const geom = new THREE.BufferGeometry();
+      const positions = [];
+      const normals = [];
+
+      const p0 = vertexPositions[0];
+      for (let i = 1; i < vertexPositions.length - 1; i++) {
+        const p1 = vertexPositions[i];
+        const p2 = vertexPositions[i + 1];
+        positions.push(...p0, ...p1, ...p2);
+
+        const vA = new THREE.Vector3(...p0);
+        const vB = new THREE.Vector3(...p1);
+        const vC = new THREE.Vector3(...p2);
+        const cb = new THREE.Vector3().subVectors(vC, vB);
+        const ab = new THREE.Vector3().subVectors(vA, vB);
+        const normal = cb.cross(ab).normalize();
+        normals.push(normal.x, normal.y, normal.z, normal.x, normal.y, normal.z, normal.x, normal.y, normal.z);
+      }
+
+      geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geom.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+
+      const center = new THREE.Vector3();
+      vertexPositions.forEach(p => center.add(new THREE.Vector3(...p)));
+      center.divideScalar(vertexPositions.length);
+
+      const mat = new THREE.MeshStandardMaterial({
+        color: color, side: THREE.DoubleSide, transparent: true,
+        opacity: 0.32, roughness: 0.3, metalness: 0.1
+      });
+
+      const mesh = new THREE.Mesh(geom, mat);
+      mesh.userData.center = center;
+      mesh.renderOrder = 1;
+      return mesh;
+    }
+
+    /* Label huruf titik sudut (sprite canvas, tanpa roundRect) */
+    function makeTextSprite(message, colorBg = "rgba(15, 23, 42, 0.92)", colorBorder = "#f59e0b") {
+      const canvas = document.createElement('canvas');
+      canvas.width = 256;
+      canvas.height = 128;
+      const ctx = canvas.getContext('2d');
+
+      const x = 12, y = 12, w = 232, h = 104, r = 24;
+      ctx.fillStyle = colorBg;
+      ctx.strokeStyle = colorBorder;
+      ctx.lineWidth = 7;
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx.lineTo(x + r, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 44px "Plus Jakarta Sans", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(message, 128, 64);
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.needsUpdate = true;
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, depthTest: false }));
+      sprite.scale.set(0.75, 0.38, 1);
+      sprite.renderOrder = 10;
+      return sprite;
+    }
+
+    /* Membangun model 3D */
+    function loadShape(shapeKey) {
+      clearCurrentModel();
+      currentShapeKey = shapeKey;
+      const data = SHAPES_DATA[shapeKey];
+      const geomData = data.buildGeometry();
+
+      if (!geomData.isCurved) {
+        /* --- SISI --- */
+        geomData.faces.forEach((faceData, fIdx) => {
+          const vCoords = faceData.verts.map(idx => geomData.vertices[idx].pos);
+          const faceMesh = createPolygonFace(vCoords, faceData.color);
+          faceMesh.userData = {
+            index: fIdx, type: 'face', name: faceData.label,
+            originalColor: faceData.color, center: faceMesh.userData.center
+          };
+          mainGroup.add(faceMesh);
+          faceMeshes.push(faceMesh);
+        });
+
+        /* --- RUSUK --- */
+        geomData.edges.forEach((edgeData, eIdx) => {
+          const p1 = geomData.vertices[edgeData.pair[0]].pos;
+          const p2 = geomData.vertices[edgeData.pair[1]].pos;
+          const edgeMesh = createThickEdge(p1, p2, 0.055, 0x475569);
+          edgeMesh.userData = {
+            index: eIdx, type: 'edge', name: edgeData.label,
+            p1: p1, p2: p2, originalRadius: 0.055
+          };
+          mainGroup.add(edgeMesh);
+          edgeMeshes.push(edgeMesh);
+        });
+
+        /* --- TITIK SUDUT + LABEL --- */
+        geomData.vertices.forEach((vData, vIdx) => {
+          const sphere = new THREE.Mesh(
+            new THREE.SphereGeometry(0.14, 28, 28),
+            new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.2, metalness: 0.5 })
+          );
+          sphere.position.set(...vData.pos);
+          sphere.renderOrder = 8;
+
+          const labelSprite = makeTextSprite(vData.id);
+          labelSprite.position.set(vData.pos[0], vData.pos[1] + 0.35, vData.pos[2]);
+          mainGroup.add(labelSprite);
+
+          sphere.userData = {
+            index: vIdx, type: 'vertex',
+            name: `${vData.label} (${vData.id})`,
+            pos: vData.pos, labelSprite: labelSprite
+          };
+          mainGroup.add(sphere);
+          vertexMeshes.push(sphere);
+        });
+
+      } else if (geomData.type === 'tabung') {
+        /* --- TABUNG --- */
+        const cylMesh = new THREE.Mesh(
+          new THREE.CylinderGeometry(geomData.radius, geomData.radius, geomData.height, 48, 1, true),
+          new THREE.MeshStandardMaterial({ color: 0xf59e0b, side: THREE.DoubleSide, transparent: true, opacity: 0.32, roughness: 0.3 })
+        );
+        cylMesh.userData = { index: 2, type: 'face', name: geomData.faces[2].label, originalColor: 0xf59e0b, center: new THREE.Vector3(0, 0, 0) };
+        mainGroup.add(cylMesh);
+        faceMeshes.push(cylMesh);
+
+        const topCircle = new THREE.Mesh(
+          new THREE.CircleGeometry(geomData.radius, 48),
+          new THREE.MeshStandardMaterial({ color: 0x3b82f6, side: THREE.DoubleSide, transparent: true, opacity: 0.4 })
+        );
+        topCircle.rotation.x = -Math.PI / 2;
+        topCircle.position.y = geomData.height / 2;
+        topCircle.userData = { index: 1, type: 'face', name: geomData.faces[1].label, originalColor: 0x3b82f6, center: new THREE.Vector3(0, geomData.height / 2, 0) };
+        mainGroup.add(topCircle);
+        faceMeshes.push(topCircle);
+
+        const botCircle = new THREE.Mesh(
+          new THREE.CircleGeometry(geomData.radius, 48),
+          new THREE.MeshStandardMaterial({ color: 0x10b981, side: THREE.DoubleSide, transparent: true, opacity: 0.4 })
+        );
+        botCircle.rotation.x = Math.PI / 2;
+        botCircle.position.y = -geomData.height / 2;
+        botCircle.userData = { index: 0, type: 'face', name: geomData.faces[0].label, originalColor: 0x10b981, center: new THREE.Vector3(0, -geomData.height / 2, 0) };
+        mainGroup.add(botCircle);
+        faceMeshes.push(botCircle);
+
+        geomData.edges.forEach((edgeData, eIdx) => {
+          const torus = new THREE.Mesh(
+            new THREE.TorusGeometry(edgeData.radius, 0.055, 20, 64),
+            new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.2, metalness: 0.4 })
+          );
+          torus.rotation.x = Math.PI / 2;
+          torus.position.y = edgeData.y;
+          torus.renderOrder = 4;
+          torus.userData = { index: eIdx, type: 'edge', name: edgeData.label };
+          mainGroup.add(torus);
+          edgeMeshes.push(torus);
+        });
+
+      } else if (geomData.type === 'kerucut') {
+        /* --- KERUCUT --- */
+        const coneMesh = new THREE.Mesh(
+          new THREE.ConeGeometry(geomData.radius, geomData.height, 48, 1, true),
+          new THREE.MeshStandardMaterial({ color: 0xef4444, side: THREE.DoubleSide, transparent: true, opacity: 0.32, roughness: 0.3 })
+        );
+        coneMesh.userData = { index: 1, type: 'face', name: geomData.faces[1].label, originalColor: 0xef4444, center: new THREE.Vector3(0, 0, 0) };
+        mainGroup.add(coneMesh);
+        faceMeshes.push(coneMesh);
+
+        const baseCircle = new THREE.Mesh(
+          new THREE.CircleGeometry(geomData.radius, 48),
+          new THREE.MeshStandardMaterial({ color: 0x10b981, side: THREE.DoubleSide, transparent: true, opacity: 0.4 })
+        );
+        baseCircle.rotation.x = Math.PI / 2;
+        baseCircle.position.y = -geomData.height / 2;
+        baseCircle.userData = { index: 0, type: 'face', name: geomData.faces[0].label, originalColor: 0x10b981, center: new THREE.Vector3(0, -geomData.height / 2, 0) };
+        mainGroup.add(baseCircle);
+        faceMeshes.push(baseCircle);
+
+        const torus = new THREE.Mesh(
+          new THREE.TorusGeometry(geomData.radius, 0.055, 20, 64),
+          new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.2, metalness: 0.4 })
+        );
+        torus.rotation.x = Math.PI / 2;
+        torus.position.y = -geomData.height / 2;
+        torus.renderOrder = 4;
+        torus.userData = { index: 0, type: 'edge', name: geomData.edges[0].label };
+        mainGroup.add(torus);
+        edgeMeshes.push(torus);
+
+        const apexMesh = new THREE.Mesh(
+          new THREE.SphereGeometry(0.15, 28, 28),
+          new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.2, metalness: 0.3 })
+        );
+        apexMesh.position.set(0, geomData.height / 2, 0);
+        apexMesh.renderOrder = 8;
+
+        const labelSprite = makeTextSprite("T");
+        labelSprite.position.set(0, (geomData.height / 2) + 0.38, 0);
+        mainGroup.add(labelSprite);
+
+        apexMesh.userData = {
+          index: 0, type: 'vertex',
+          name: 'Titik Puncak (Apex) Kerucut',
+          pos: [0, geomData.height / 2, 0], labelSprite: labelSprite
+        };
+        mainGroup.add(apexMesh);
+        vertexMeshes.push(apexMesh);
+      }
+
+      updateEducationalPanel(data);
+      selectPropertyMode(currentMode || 'vertices');
+    }
+  </script>
+
+  <!-- ===================== SCRIPT 4: LOGIKA UI ===================== -->
+  <script>
+    const MODE_NAMES = { vertices: 'Titik Sudut', edges: 'Rusuk', faces: 'Sisi' };
+
+    /* ---------- Panel Edukasi ---------- */
+    function updateEducationalPanel(data) {
+      const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+      set('badge-shape-name', data.name);
+      set('edu-name', data.name);
+      set('edu-tagline', data.tagline);
+      set('count-vertices', data.verticesCount);
+      set('count-edges', data.edgesCount);
+      set('count-faces', data.facesCount);
+      set('formula-volume', data.volumeFormula);
+      set('formula-surface', data.surfaceFormula);
+
+      // Rumus Euler V − E + F = 2 (hanya untuk polihedron)
+      const sum = data.verticesCount - data.edgesCount + data.facesCount;
+      const chip = document.getElementById('euler-chip');
+      if (chip) {
+        if (sum === 2 && data.verticesCount > 0) {
+          chip.classList.remove('hidden');
+          set('euler-text', `V − E + F = ${data.verticesCount} − ${data.edgesCount} + ${data.facesCount} = 2 ✓`);
+        } else {
+          chip.classList.add('hidden');
+        }
+      }
+
+      const ul = document.getElementById('edu-characteristics');
+      if (ul) {
+        ul.innerHTML = '';
+        data.characteristics.forEach(text => {
+          const li = document.createElement('li');
+          li.className = 'flex gap-2 text-xs text-slate-300 leading-relaxed';
+          const dot = document.createElement('span');
+          dot.className = 'text-indigo-400 shrink-0';
+          dot.textContent = '▸';
+          const span = document.createElement('span');
+          span.textContent = text;
+          li.appendChild(dot); li.appendChild(span);
+          ul.appendChild(li);
+        });
+      }
+
+      document.querySelectorAll('#shape-selector button').forEach(btn => {
+        const isActive = btn.dataset.shape === currentShapeKey;
+        btn.className = 'px-2 py-2.5 rounded-xl text-[11px] font-bold border transition text-center leading-tight ' +
+          (isActive
+            ? 'bg-indigo-600/90 border-indigo-400 text-white shadow-lg shadow-indigo-600/30'
+            : 'bg-slate-800 border-slate-700 text-slate-300 hover:border-indigo-500 hover:text-white');
+      });
+    }
+
+    /* ---------- Visual per Mode ---------- */
+    function applyModeVisuals() {
+      const inVert = currentMode === 'vertices';
+      const inEdge = currentMode === 'edges';
+      const inFace = currentMode === 'faces';
+
+      vertexMeshes.forEach(v => {
+        v.material.color.setHex(inVert ? 0xf59e0b : 0x94a3b8);
+        v.material.emissive.setHex(inVert ? 0x7c2d12 : 0x000000);
+        v.scale.setScalar(inVert ? 1.3 : 1.0);
+      });
+      edgeMeshes.forEach(e => {
+        e.material.color.setHex(inEdge ? 0x22d3ee : 0x475569);
+        e.material.emissive.setHex(inEdge ? 0x155e75 : 0x000000);
+      });
+      faceMeshes.forEach(f => {
+        f.material.opacity = inFace ? 0.55 : 0.32;
+        f.material.emissive.setHex(inFace ? 0x064e3b : 0x000000);
+      });
+    }
+
+    function resetElementVisual(el) {
+      const t = el.userData.type;
+      const isMode = (currentMode === t + 's');
+      const m = el.material;
+      if (t === 'vertex') {
+        m.color.setHex(isMode ? 0xf59e0b : 0x94a3b8);
+        m.emissive.setHex(isMode ? 0x7c2d12 : 0x000000);
+        el.scale.setScalar(isMode ? 1.3 : 1.0);
+      } else if (t === 'edge') {
+        m.color.setHex(isMode ? 0x22d3ee : 0x475569);
+        m.emissive.setHex(isMode ? 0x155e75 : 0x000000);
+      } else {
+        m.opacity = isMode ? 0.55 : 0.32;
+        m.emissive.setHex(isMode ? 0x064e3b : 0x000000);
+      }
+    }
+
+    function selectPropertyMode(mode) {
+      currentMode = mode;
+      stopSequence();
+      activeElements =
+        mode === 'vertices' ? vertexMeshes.slice() :
+        mode === 'edges'    ? edgeMeshes.slice() :
+                              faceMeshes.slice();
+      currentStepIndex = -1;
+      applyModeVisuals();
+
+      const styleMap = {
+        vertices: { on: 'bg-amber-500/25 border-amber-400 text-amber-200',     off: 'bg-slate-800 border-slate-700 text-slate-400' },
+        edges:    { on: 'bg-cyan-500/25 border-cyan-400 text-cyan-200',        off: 'bg-slate-800 border-slate-700 text-slate-400' },
+        faces:    { on: 'bg-emerald-500/25 border-emerald-400 text-emerald-200', off: 'bg-slate-800 border-slate-700 text-slate-400' }
+      };
+      document.querySelectorAll('#mode-selector button').forEach(btn => {
+        const s = styleMap[btn.dataset.mode] || styleMap.vertices;
+        btn.className = 'flex items-center justify-center gap-1.5 px-2 py-2.5 rounded-xl text-[11px] font-bold border transition ' +
+          (btn.dataset.mode === mode ? s.on : s.off);
+      });
+
+      const badge = document.getElementById('badge-mode-name');
+      if (badge) badge.textContent = MODE_NAMES[mode] + ': Siap Disorot';
+      const counter = document.getElementById('step-counter');
+      if (counter) counter.textContent = '- / ' + activeElements.length;
+      const nameEl = document.getElementById('current-element-name');
+      if (nameEl) nameEl.textContent = 'Klik elemen di kanvas atau tekan Putar';
+    }
+
+    /* ---------- Sequencer ---------- */
+    function stopSequence() {
+      isPlayingSequence = false;
+      if (sequenceTimer) { clearInterval(sequenceTimer); sequenceTimer = null; }
+      updatePlayButtonUI();
+    }
+
+    function startSequence() {
+      if (!activeElements.length) return;
+      isPlayingSequence = true;
+      updatePlayButtonUI();
+      if (currentStepIndex < 0) currentStepIndex = 0;
+      highlightStep(currentStepIndex);
+      sequenceTimer = setInterval(() => {
+        currentStepIndex = (currentStepIndex + 1) % activeElements.length;
+        highlightStep(currentStepIndex);
+      }, 1900);
+    }
+
+    function highlightStep(idx) {
+      const el = activeElements[idx];
+      if (!el) return;
+      activeElements.forEach((item, i) => {
+        if (!item) return;
+        const m = item.material;
+        if (i === idx) {
+          if (item.userData.type === 'vertex') {
+            m.color.setHex(0xfde047); m.emissive.setHex(0xf59e0b);
+            item.scale.setScalar(1.6);
+          } else if (item.userData.type === 'edge') {
+            m.color.setHex(0xa5f3fc); m.emissive.setHex(0x06b6d4);
+          } else {
+            m.opacity = 0.85; m.emissive.setHex(0x10b981);
+          }
+        } else {
+          resetElementVisual(item);
+        }
+      });
+      playNote(idx);
+      const counter = document.getElementById('step-counter');
+      if (counter) counter.textContent = (idx + 1) + ' / ' + activeElements.length;
+      const nameEl = document.getElementById('current-element-name');
+      if (nameEl) nameEl.textContent = el.userData.name;
+      const badge = document.getElementById('badge-mode-name');
+      if (badge) badge.textContent = 'Menyala: ' + el.userData.name;
+    }
+
+    function stepNext() {
+      if (!activeElements.length) return;
+      stopSequence();
+      currentStepIndex = (currentStepIndex + 1) % activeElements.length;
+      highlightStep(currentStepIndex);
+    }
+
+    function stepPrev() {
+      if (!activeElements.length) return;
+      stopSequence();
+      currentStepIndex = (currentStepIndex - 1 + activeElements.length) % activeElements.length;
+      highlightStep(currentStepIndex);
+    }
+
+    function updatePlayButtonUI() {
+      const btn = document.getElementById('btn-play-sequence');
+      if (!btn) return;
+      const icPlay = document.getElementById('icon-play');
+      const icPause = document.getElementById('icon-pause');
+      if (icPlay) icPlay.classList.toggle('hidden', isPlayingSequence);
+      if (icPause) icPause.classList.toggle('hidden', !isPlayingSequence);
+      btn.classList.toggle('bg-rose-600', isPlayingSequence);
+      btn.classList.toggle('hover:bg-rose-500', isPlayingSequence);
+      btn.classList.toggle('bg-indigo-600', !isPlayingSequence);
+      btn.classList.toggle('hover:bg-indigo-500', !isPlayingSequence);
+    }
+
+    /* ---------- Kamera ---------- */
+    function zoomCamera(factor) {
+      if (!camera) return;
+      const targetPos = controls ? controls.target : new THREE.Vector3(0, 0, 0);
+      const dir = camera.position.clone().sub(targetPos);
+      const minD = controls ? controls.minDistance : 2;
+      const maxD = controls ? controls.maxDistance : 14;
+      dir.setLength(Math.max(minD, Math.min(maxD, dir.length() * factor)));
+      camera.position.copy(targetPos).add(dir);
+      if (controls && controls.update) controls.update();
+    }
+
+    function resetCamera() {
+      if (camera) camera.position.set(4.2, 3.0, 4.8);
+      if (controls) { controls.target.set(0, 0, 0); controls.update(); }
+      else if (camera) camera.lookAt(0, 0, 0);
+      if (mainGroup) mainGroup.rotation.set(0, 0, 0);
+      stopSequence();
+    }
+
+    /* ---------- Explode ---------- */
+    function updateExplodeButtonUI(state) {
+      isExploded = state;
+      const btn = document.getElementById('btn-explode');
+      if (!btn) return;
+      const label = document.getElementById('explode-label');
+      if (label) label.textContent = state ? 'Rakit Kembali Bangun' : 'Bongkar Bangun (Explode)';
+      btn.className = 'w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold border transition ' +
+        (state
+          ? 'bg-rose-600/25 border-rose-400/60 text-rose-200 hover:bg-rose-600/40'
+          : 'bg-slate-800 border-slate-700 text-slate-200 hover:border-indigo-500 hover:text-white');
+    }
+
+    function toggleExplode() {
+      isExploded = !isExploded;
+      updateExplodeButtonUI(isExploded);
+      stopSequence();
+
+      if (isExploded) {
+        vertexMeshes.forEach(v => {
+          const base = new THREE.Vector3(...(v.userData.pos || [0, 0, 0]));
+          const dir = base.clone();
+          if (dir.lengthSq() < 0.0001) dir.set(0, 1, 0); else dir.normalize();
+          v.position.copy(base).addScaledVector(dir, 0.6);
+          if (v.userData.labelSprite) {
+            const lp = base.clone().addScaledVector(dir, 0.6);
+            lp.y += 0.35;
+            v.userData.labelSprite.position.copy(lp);
+          }
+        });
+        faceMeshes.forEach(f => {
+          const c = f.userData.center;
+          if (!c || c.lengthSq() < 0.0001) return; // selimut lengkung tetap di tempat
+          f.position.copy(c.clone().normalize().multiplyScalar(0.9));
+        });
+      } else {
+        vertexMeshes.forEach(v => {
+          if (v.userData.pos) v.position.set(...v.userData.pos);
+          if (v.userData.labelSprite && v.userData.pos) {
+            v.userData.labelSprite.position.set(v.userData.pos[0], v.userData.pos[1] + 0.35, v.userData.pos[2]);
+          }
+        });
+        faceMeshes.forEach(f => f.position.set(0, 0, 0));
+      }
+    }
+
+    /* ---------- Raycast: klik elemen di kanvas ---------- */
+    function handleCanvasClick(e) {
+      if (!renderer || !camera) return;
+      const rect = renderer.domElement.getBoundingClientRect();
+      const ndc = new THREE.Vector2(
+        ((e.clientX - rect.left) / rect.width) * 2 - 1,
+        -((e.clientY - rect.top) / rect.height) * 2 + 1
+      );
+      const raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(ndc, camera);
+
+      const pool = currentMode === 'vertices' ? vertexMeshes
+                 : currentMode === 'edges'    ? edgeMeshes
+                                              : faceMeshes;
+      if (!pool.length) return;
+
+      const hits = raycaster.intersectObjects(pool, false);
+      if (hits.length) {
+        stopSequence();
+        currentStepIndex = pool.indexOf(hits[0].object);
+        highlightStep(currentStepIndex);
+      } else {
+        stopSequence();
+        currentStepIndex = -1;
+        applyModeVisuals();
+        const badge = document.getElementById('badge-mode-name');
+        if (badge) badge.textContent = MODE_NAMES[currentMode] + ': Siap Disorot';
+        const counter = document.getElementById('step-counter');
+        if (counter) counter.textContent = '- / ' + activeElements.length;
+        const nameEl = document.getElementById('current-element-name');
+        if (nameEl) nameEl.textContent = 'Klik elemen di kanvas atau tekan Putar';
+      }
+    }
+
+    /* ---------- Inisialisasi semua event UI ---------- */
+    function initUIEvents() {
+      // 1. Tombol pemilih bangun
+      const shapeSel = document.getElementById('shape-selector');
+      if (shapeSel) {
+        shapeSel.innerHTML = '';
+        Object.keys(SHAPES_DATA).forEach(key => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.dataset.shape = key;
+          btn.textContent = SHAPES_DATA[key].name;
+          btn.addEventListener('click', () => loadShape(key));
+          shapeSel.appendChild(btn);
+        });
+      }
+
+      // 2. Mode sorot
+      document.querySelectorAll('#mode-selector button').forEach(btn => {
+        btn.addEventListener('click', () => selectPropertyMode(btn.dataset.mode));
+      });
+
+      // 3. Zoom & reset
+      const zi = document.getElementById('btn-zoom-in');
+      const zo = document.getElementById('btn-zoom-out');
+      const rv = document.getElementById('btn-reset-view');
+      if (zi) zi.addEventListener('click', () => zoomCamera(0.82));
+      if (zo) zo.addEventListener('click', () => zoomCamera(1.22));
+      if (rv) rv.addEventListener('click', resetCamera);
+
+      // 4. Toggle audio
+      const btnSound = document.getElementById('btn-toggle-sound');
+      if (btnSound) {
+        btnSound.addEventListener('click', () => {
+          isSoundEnabled = !isSoundEnabled;
+          const txt = document.getElementById('sound-status-text');
+          if (txt) txt.textContent = isSoundEnabled ? 'Audio: Nyala' : 'Audio: Mati';
+          const icon = document.getElementById('icon-sound-on');
+          if (icon) icon.classList.toggle('opacity-30', !isSoundEnabled);
+          if (isSoundEnabled) playNote(0);
+        });
+      }
+
+      // 5. Sequencer
+      const bp = document.getElementById('btn-play-sequence');
+      const bn = document.getElementById('btn-next-step');
+      const bv = document.getElementById('btn-prev-step');
+      if (bp) bp.addEventListener('click', () => isPlayingSequence ? stopSequence() : startSequence());
+      if (bn) bn.addEventListener('click', stepNext);
+      if (bv) bv.addEventListener('click', stepPrev);
+
+      // 6. Explode
+      const be = document.getElementById('btn-explode');
+      if (be) be.addEventListener('click', toggleExplode);
+
+      // 7. Klik elemen di kanvas (bedakan klik vs drag)
+      if (renderer && renderer.domElement) {
+        let downPos = null;
+        renderer.domElement.addEventListener('pointerdown', (e) => {
+          downPos = { x: e.clientX, y: e.clientY };
+        });
+        renderer.domElement.addEventListener('pointerup', (e) => {
+          if (!downPos) return;
+          const moved = Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y);
+          downPos = null;
+          if (moved > 6) return;
+          handleCanvasClick(e);
+        });
+      }
+
+      // 8. Shortcut keyboard
+      window.addEventListener('keydown', (e) => {
+        if (e.target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
+        switch (e.key) {
+          case 'ArrowRight': stepNext(); break;
+          case 'ArrowLeft':  stepPrev(); break;
+          case '1': selectPropertyMode('vertices'); break;
+          case '2': selectPropertyMode('edges');    break;
+          case '3': selectPropertyMode('faces');    break;
+          case ' ': e.preventDefault(); isPlayingSequence ? stopSequence() : startSequence(); break;
+          case 'e': case 'E': toggleExplode(); break;
+          case 'r': case 'R': resetCamera(); break;
+        }
+      });
+
+      // Sinkronkan tampilan awal
+      updateEducationalPanel(SHAPES_DATA[currentShapeKey]);
+      selectPropertyMode(currentMode);
+    }
+  </script>
+
+  <!-- ===================== SCRIPT 5: RENDER LOOP & START ===================== -->
+  <script>
+    const clock = new THREE.Clock();
+
+    function animateLoop() {
+      requestAnimationFrame(animateLoop);
+      const delta = clock.getDelta();
+
+      if (controls && controls.update) controls.update();
+
+      if (autoRotate && mainGroup) mainGroup.rotation.y += delta * 0.25;
+
+      // Efek pulsing titik sudut yang sedang menyala
+      if (currentMode === 'vertices' && currentStepIndex >= 0 && activeElements[currentStepIndex]) {
+        const pulse = 1.6 + Math.sin(clock.getElapsedTime() * 7) * 0.2;
+        activeElements[currentStepIndex].scale.set(pulse, pulse, pulse);
+      }
+
+      if (renderer && scene && camera) renderer.render(scene, camera);
+    }
+
+    window.onload = function() {
+      initThreeScene();
+      initUIEvents();
+    };
+  </script>
+</body>
+</html>
